@@ -9,32 +9,27 @@ import requests
 # ==========================================
 # 1. KONFIGURASI HALAMAN
 # ==========================================
-st.set_page_config(page_title="Skrining Kesehatan Payudara", page_icon="🎗️", layout="centered")
+st.set_page_config(page_title="Skrinieng Kesehatan Payudara", page_icon="🎗️", layout="centered")
 
 # ==========================================
 # 2. FUNGSI MEMUAT MODEL PYTORCH (DARI HUGGING FACE)
 # ==========================================
-# Tautan langsung dari Hugging Face
 MODEL_URL = "https://huggingface.co/Dustingimaking1/BCancer/resolve/main/effnetb2_best.pth"
 MODEL_PATH = "effnetb2_best.pth"
 
 @st.cache_resource
 def load_my_model():
-    # --- PROSES DOWNLOAD MODEL JIKA BELUM ADA ---
     if not os.path.exists(MODEL_PATH):
-        with st.spinner("Mempersiapkan sistem untuk pertama kali (mengunduh model sekitar 32 MB)..."):
+        with st.spinner("Mempersiapkan sistem (mengunduh model sekitar 32 MB)..."):
             response = requests.get(MODEL_URL)
             with open(MODEL_PATH, "wb") as f:
                 f.write(response.content)
 
-    # --- PROSES LOAD ARSITEKTUR ---
-    # Panggil arsitektur dasar EfficientNet-B2
+    # Load arsitektur dasar EfficientNet-B2
     model = models.efficientnet_b2(weights=None)
     
-    # Ambil jumlah fitur input (1408)
+    # Rekonstruksi classifier
     num_ftrs = model.classifier[1].in_features
-    
-    # Rekonstruksi classifier persis seperti saat model ditraining
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.3, inplace=True), 
         nn.Linear(num_ftrs, 128),        
@@ -43,12 +38,12 @@ def load_my_model():
         nn.Linear(128, 2)                
     )
     
-    # Muat bobot model dengan aman ke CPU dari file yang baru diunduh
+    # Load bobot model
     model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
     model.eval()
     return model
 
-# Panggil fungsi agar model dimuat ke memori
+# Panggil fungsi agar model dimuat
 model = load_my_model()
 
 # ==========================================
@@ -61,32 +56,94 @@ transform = transforms.Compose([
 ])
 
 # ==========================================
-# 4. INJEKSI CSS KUSTOM (RESPONSIF & GAMBAR FIXED)
+# 4. INJEKSI CSS KUSTOM (UKURAN DIKECILKAN & PROPORSIONAL)
 # ==========================================
 custom_css = """
 <style>
+    /* Latar belakang aplikasi */
     .stApp { background-color: #fbe6eb; }
     
-    /* Memusatkan wadah gambar */
-    [data-testid="stImage"] { display: flex; justify-content: center; margin: 5% 0; }
-    
-    /* MENGUNCI UKURAN GAMBAR (FIXED SIZE) */
-    [data-testid="stImage"] img { 
-        width: 300px !important;       /* Lebar dikunci tetap */
-        height: 300px !important;      /* Tinggi dikunci tetap */
-        object-fit: cover !important;  /* Memotong proporsional agar tidak gepeng */
-        border-radius: 15px;           /* Ujung gambar dibuat membulat */
-        box-shadow: 0px 4px 10px rgba(0,0,0,0.1); /* Sedikit bayangan agar elegan */
+    /* Memusatkan wadah gambar Streamlit */
+    [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"] {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    /* Mengunci ukuran gambar tetap di tengah (300x300) */
+    [data-testid="stImage"] img {
+        width: 300px !important;
+        height: 300px !important;
+        object-fit: cover !important;
+        border-radius: 15px;
+        box-shadow: 0px 4px 10px rgba(0,0,0,0.1);
+        margin: 0 !important;
+        display: block;
+    }
+
+    /* Sembunyikan label bawaan file uploader */
+    .stFileUploader > label {
+        display: none;
+    }
+
+    /* Pengaturan teks sambutan (Dikecilkan dari 24px ke kisaran 15px-18px) */
+    .welcome-text { 
+        color: #c24068; 
+        text-align: center; 
+        font-size: clamp(14px, 3.5vw, 18px); 
+        font-weight: 600; 
+        margin-bottom: 4%; 
+        padding: 0 5%; 
+        line-height: 1.5; 
     }
     
-    .welcome-text { color: #c24068; text-align: center; font-size: clamp(18px, 4vw, 24px); font-weight: 600; margin-bottom: 5%; padding: 0 3%; line-height: 1.5; }
-    .disclaimer-text { color: #e91e63; text-align: center; font-size: clamp(14px, 3vw, 18px); font-weight: 500; margin-top: 8%; padding: 0 5%; line-height: 1.5; }
+    /* Teks Disclaimer (Dikecilkan menjadi lebih subtil) */
+    .disclaimer-text { 
+        color: #e91e63; 
+        text-align: center; 
+        font-size: clamp(11px, 2.5vw, 13px); 
+        font-weight: 500; 
+        margin-top: 6%; 
+        padding: 0 8%; 
+        line-height: 1.6; 
+        opacity: 0.85;
+    }
     
-    .result-box { border-radius: 15px; padding: 5%; text-align: center; margin-top: 5%; box-shadow: 0px 4px 6px rgba(0,0,0,0.05); width: 80%; margin-left: auto; margin-right: auto; }
-    .result-text { font-size: clamp(24px, 5vw, 32px); font-weight: bold; margin: 0; }
+    /* Kotak Hasil Prediksi (Lebar disamakan dengan gambar agar rapi) */
+    .result-box { 
+        border-radius: 12px; 
+        padding: 12px 20px; 
+        text-align: center; 
+        margin-top: 4%; 
+        box-shadow: 0px 3px 6px rgba(0,0,0,0.05); 
+        width: 300px; /* Lebarnya disamakan persis dengan ukuran gambar */
+        margin-left: auto; 
+        margin-right: auto; 
+    }
     
-    .logo-container { display: flex; justify-content: center; margin-top: 8%; margin-bottom: 3%; }
-    .ribbon-icon { background-color: #f8bbd0; color: #e91e63; font-size: clamp(40px, 8vw, 50px); width: clamp(80px, 20vw, 100px); height: clamp(80px, 20vw, 100px); display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+    /* Teks di dalam Kotak Hasil (Dikecilkan agar pas di dalam kotak 300px) */
+    .result-text { 
+        font-size: clamp(16px, 4vw, 20px); 
+        font-weight: bold; 
+        margin: 0; 
+    }
+    
+    /* Kontainer dan ukuran Icon Ribbon di atas (Diperkecil) */
+    .logo-container { display: flex; justify-content: center; margin-top: 5%; margin-bottom: 2%; }
+    .ribbon-icon { 
+        background-color: #f8bbd0; 
+        color: #e91e63; 
+        font-size: clamp(24px, 5vw, 30px); 
+        width: clamp(50px, 12vw, 60px); 
+        height: clamp(50px, 12vw, 60px); 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        border-radius: 50%; 
+    }
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
@@ -95,14 +152,16 @@ st.markdown(custom_css, unsafe_allow_html=True)
 # 5. ANTARMUKA PENGGUNA (UI)
 # ==========================================
 st.markdown('<div class="logo-container"><div class="ribbon-icon">🎗️</div></div>', unsafe_allow_html=True)
-st.markdown('<div class="welcome-text">Selamat datang! Mari kita langkah bersama untuk mengecek kesehatan payudara Anda<br>dengan penuh kepedulian dan kehangatan—selangkah demi selangkah.</div>', unsafe_allow_html=True)
+st.markdown('<div class="welcome-text">Selamaet datang! Mari kita langkah bersama untuk mengecek kesehatan payudara Anda<br>dengan penuh kepedulian dan kehangatan—selangkah demi selangkah.</div>', unsafe_allow_html=True)
 
-uploaded_file = st.file_uploader("Upload Gambar", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
+# File uploader
+with st.container():
+    uploaded_file = st.file_uploader("Upload Gambar", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
 if uploaded_file is not None:
-    # 1. Tampilkan Gambar
+    # 1. Tampilkan Gambar (Center via CSS)
     image = Image.open(uploaded_file).convert('RGB')
-    st.image(image, use_container_width=True)
+    st.image(image)
     
     # 2. Proses Prediksi PyTorch
     img_tensor = transform(image).unsqueeze(0)
@@ -112,7 +171,7 @@ if uploaded_file is not None:
         probabilities = torch.nn.functional.softmax(output[0], dim=0)
         predicted_class = torch.argmax(probabilities).item()
     
-    # 3. Logika Hasil Prediksi (Asumsi: 0 = Jinak, 1 = Ganas)
+    # 3. Logika Hasil Prediksi (0 = Jinak, 1 = Ganas)
     if predicted_class == 1:
         hasil_teks = "Ganas"
         warna_box = "#ffebee"  # Merah muda
