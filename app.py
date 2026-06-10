@@ -8,14 +8,8 @@ import requests
 import base64
 from io import BytesIO
 
-# ==========================================
-# 1. KONFIGURASI HALAMAN
-# ==========================================
 st.set_page_config(page_title="Skrining Kesehatan Payudara", page_icon="🎗️", layout="centered")
 
-# ==========================================
-# 2. FUNGSI MEMUAT MODEL PYTORCH (DARI HUGGING FACE)
-# ==========================================
 MODEL_URL = "https://huggingface.co/Dustingimaking1/BCancer/resolve/main/effnetb2_best.pth"
 MODEL_PATH = "effnetb2_best.pth"
 
@@ -40,17 +34,12 @@ def load_my_model():
         nn.Linear(128, 2)                
     )
     
-    # Load bobot model
     model.load_state_dict(torch.load(MODEL_PATH, map_location=torch.device('cpu')))
     model.eval()
     return model
 
-# Panggil fungsi agar model dimuat
 model = load_my_model()
 
-# ==========================================
-# 3. PREPROCESSING GAMBAR
-# ==========================================
 transform = transforms.Compose([
     transforms.Resize((288, 288)), 
     transforms.ToTensor(),
@@ -64,9 +53,6 @@ def get_image_download_link(img):
     img_str = base64.b64encode(buffered.getvalue()).decode()
     return f'<div class="img-container"><img src="data:image/jpeg;base64,{img_str}" class="center-img"></div>'
 
-# ==========================================
-# 4. INJEKSI CSS KUSTOM (FIXED DESIGN & COMPACT)
-# ==========================================
 custom_css = """
 <style>
     /* Latar belakang aplikasi */
@@ -154,22 +140,17 @@ custom_css = """
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
-# ==========================================
-# 5. ANTARMUKA PENGGUNA (UI)
-# ==========================================
+
 st.markdown('<div class="logo-container"><div class="ribbon-icon">🎗️</div></div>', unsafe_allow_html=True)
 st.markdown('<div class="welcome-text">Selamat datang! Mari kita langkah bersama untuk mengecek kesehatan payudara Anda<br>dengan penuh kepedulian dan kehangatan—selangkah demi selangkah.</div>', unsafe_allow_html=True)
 
-# File uploader
 uploaded_file = st.file_uploader("Upload Gambar", type=["jpg", "jpeg", "png"], label_visibility="collapsed")
 
 if uploaded_file is not None:
-    # 1. Tampilkan Gambar (Dipaksa Center & Resize menggunakan HTML + Base64)
     image = Image.open(uploaded_file).convert('RGB')
     html_image = get_image_download_link(image)
     st.markdown(html_image, unsafe_allow_html=True)
     
-    # 2. Proses Prediksi PyTorch
     img_tensor = transform(image).unsqueeze(0)
     
     with torch.no_grad():
@@ -177,7 +158,6 @@ if uploaded_file is not None:
         probabilities = torch.nn.functional.softmax(output[0], dim=0)
         predicted_class = torch.argmax(probabilities).item()
     
-    # 3. Logika Hasil Prediksi (0 = Jinak, 1 = Ganas)
     if predicted_class == 1:
         hasil_teks = "Ganas"
         warna_box = "#ffebee"  
@@ -187,7 +167,6 @@ if uploaded_file is not None:
         warna_box = "#e0f2f1"  
         warna_teks = "#2e7d32" 
         
-    # 4. Tampilkan Kotak Hasil (Lebar disamakan menjadi 200px agar serasi dengan gambar)
     st.markdown(
         f'<div class="result-box" style="background-color: {warna_box};"><p class="result-text" style="color: {warna_teks};">Hasil Prediksi : {hasil_teks}</p></div>', 
         unsafe_allow_html=True
